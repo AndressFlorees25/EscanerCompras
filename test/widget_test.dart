@@ -29,4 +29,23 @@ void main() {
     expect(find.text('Espirales'), findsOneWidget);
     expect(find.text('\$1.350'), findsWidgets); // total y subtotal
   });
+
+  testWidgets('terminar compra la pasa al historial', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'carrito': '[{"nombre":"Espirales","precio":450,"cantidad":3,"codigo":"7802500000053"}]',
+    });
+    await tester.pumpWidget(const EscanerComprasApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Terminar compra'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Terminar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Escanea o agrega tu primer producto'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Historial'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 productos'), findsOneWidget);
+    expect(find.text('\$1.350'), findsWidgets);
+  });
 }

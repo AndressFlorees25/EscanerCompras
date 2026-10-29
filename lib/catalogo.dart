@@ -38,6 +38,22 @@ class Catalogo {
     return (productos: productos, presupuesto: prefs.getInt('presupuesto'));
   }
 
+  /// Compras terminadas, de la más nueva a la más antigua.
+  Future<List<Compra>> historial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final texto = prefs.getString('historial');
+    if (texto == null) return [];
+    return (jsonDecode(texto) as List)
+        .map((j) => Compra.fromJson(j as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> agregarAlHistorial(Compra compra) async {
+    final todas = [compra, ...await historial()];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('historial', jsonEncode(todas.map((c) => c.toJson()).toList()));
+  }
+
   Future<Map<String, dynamic>> _leer() async {
     final prefs = await SharedPreferences.getInstance();
     final texto = prefs.getString(_clave);

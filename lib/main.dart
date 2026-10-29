@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'catalogo.dart';
 import 'escaner.dart';
+import 'historial.dart';
 import 'modelos.dart';
 
 void main() => runApp(const EscanerComprasApp());
@@ -72,6 +73,24 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
       ),
     );
     if (ok == true) _cambiar(_productos.clear);
+  }
+
+  Future<void> _terminarCompra() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Terminar la compra?'),
+        content: Text('Se guarda en el historial por ${clp(_total)} y el carrito queda vacío.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Terminar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _catalogo.agregarAlHistorial(Compra(DateTime.now(), List.of(_productos)));
+    _cambiar(_productos.clear);
+    if (mounted) _avisar('Compra guardada en el historial');
   }
 
   Future<void> _escanear() async {
@@ -158,12 +177,26 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
       appBar: AppBar(
         title: const Text('Mi compra'),
         actions: [
-          if (_productos.isNotEmpty)
+          if (_productos.isNotEmpty) ...[
             IconButton(
               icon: const Icon(Icons.delete_sweep),
               tooltip: 'Vaciar carrito',
               onPressed: _vaciar,
             ),
+            IconButton(
+              icon: const Icon(Icons.check_circle),
+              tooltip: 'Terminar compra',
+              onPressed: _terminarCompra,
+            ),
+          ],
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Historial',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PantallaHistorial()),
+            ),
+          ),
         ],
       ),
       body: Column(
