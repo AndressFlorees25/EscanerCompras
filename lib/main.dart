@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'api_productos.dart';
 import 'catalogo.dart';
 import 'escaner.dart';
 import 'historial.dart';
@@ -117,11 +118,15 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
       return;
     }
 
-    // Producto nuevo: pedimos nombre y precio, y lo recordamos para la próxima
+    // Producto nuevo: buscamos el nombre en internet y pedimos el precio
     if (!mounted) return;
+    _avisar('Buscando el producto en internet...');
+    final nombreSugerido = await buscarNombreEnInternet(codigo);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     final nuevo = await showDialog<Producto>(
       context: context,
-      builder: (_) => DialogoProducto(codigo: codigo),
+      builder: (_) => DialogoProducto(codigo: codigo, nombreInicial: nombreSugerido),
     );
     if (nuevo == null) return;
     await _catalogo.guardar(codigo, nuevo.nombre, nuevo.precio);
@@ -303,15 +308,16 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
 
 class DialogoProducto extends StatefulWidget {
   final String? codigo;
+  final String? nombreInicial; // sugerido desde internet
 
-  const DialogoProducto({super.key, this.codigo});
+  const DialogoProducto({super.key, this.codigo, this.nombreInicial});
 
   @override
   State<DialogoProducto> createState() => _DialogoProductoState();
 }
 
 class _DialogoProductoState extends State<DialogoProducto> {
-  final _nombre = TextEditingController();
+  late final _nombre = TextEditingController(text: widget.nombreInicial);
   final _precio = TextEditingController();
 
   @override
@@ -323,15 +329,19 @@ class _DialogoProductoState extends State<DialogoProducto> {
         children: [
           if (widget.codigo != null)
             Text('Código: ${widget.codigo}', style: Theme.of(context).textTheme.bodySmall),
+          if (widget.nombreInicial != null)
+            Text('✨ Nombre encontrado en internet',
+                style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12)),
           TextField(
             controller: _nombre,
             decoration: const InputDecoration(labelText: 'Nombre'),
-            autofocus: true,
+            autofocus: widget.nombreInicial == null,
           ),
           TextField(
             controller: _precio,
             decoration: const InputDecoration(labelText: 'Precio', prefixText: '\$ '),
             keyboardType: TextInputType.number,
+            autofocus: widget.nombreInicial != null, // si ya hay nombre, vamos directo al precio
           ),
         ],
       ),
