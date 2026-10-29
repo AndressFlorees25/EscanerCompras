@@ -31,14 +31,48 @@ class PantallaCarrito extends StatefulWidget {
 }
 
 class _PantallaCarritoState extends State<PantallaCarrito> {
-  final List<Producto> _productos = [
-    Producto('Pan', 1500),
-    Producto('Leche', 1100, cantidad: 2),
-  ];
+  final List<Producto> _productos = [];
   int _presupuesto = 20000;
   final _catalogo = Catalogo();
 
   int get _total => _productos.fold(0, (suma, p) => suma + p.subtotal);
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    final guardado = await _catalogo.cargarCarrito();
+    if (!mounted) return;
+    setState(() {
+      _productos.addAll(guardado.productos);
+      _presupuesto = guardado.presupuesto ?? _presupuesto;
+    });
+  }
+
+  /// Aplica un cambio en pantalla y guarda el carrito en el teléfono,
+  /// así no se pierde la lista si se cierra la app.
+  void _cambiar(VoidCallback cambio) {
+    setState(cambio);
+    _catalogo.guardarCarrito(_productos, _presupuesto);
+  }
+
+  Future<void> _vaciar() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Vaciar el carrito?'),
+        content: const Text('Se borran todos los productos de esta compra.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Vaciar')),
+        ],
+      ),
+    );
+    if (ok == true) _cambiar(_productos.clear);
+  }
 
   Future<void> _escanear() async {
     final codigo = await Navigator.push<String>(
@@ -50,7 +84,7 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
     // Si ya está en el carrito, solo sumamos uno más
     final enCarrito = _productos.where((p) => p.codigo == codigo).firstOrNull;
     if (enCarrito != null) {
-      setState(() => enCarrito.cantidad++);
+      _cambiar(() => enCarrito.cantidad++);
       _avisar('${enCarrito.nombre}: ahora llevas ${enCarrito.cantidad}');
       return;
     }
@@ -58,7 +92,7 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
     // Si ya lo escaneaste antes, lo agregamos con el nombre y precio guardados
     final conocido = await _catalogo.buscar(codigo);
     if (conocido != null) {
-      setState(() => _productos.add(
+      _cambiar(() => _productos.add(
           Producto(conocido['nombre'] as String, conocido['precio'] as int, codigo: codigo)));
       _avisar('${conocido['nombre']} agregado');
       return;
@@ -72,7 +106,7 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
     );
     if (nuevo == null) return;
     await _catalogo.guardar(codigo, nuevo.nombre, nuevo.precio);
-    setState(() => _productos.add(nuevo));
+    _cambiar(() => _productos.add(nuevo));
   }
 
   void _avisar(String texto) {
@@ -86,7 +120,7 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
       context: context,
       builder: (_) => const DialogoProducto(),
     );
-    if (nuevo != null) setState(() => _productos.add(nuevo));
+    if (nuevo != null) _cambiar(() => _productos.add(nuevo));
   }
 
   Future<void> _editarPresupuesto() async {
@@ -110,7 +144,7 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
         ],
       ),
     );
-    if (valor != null) setState(() => _presupuesto = valor);
+    if (valor != null) _cambiar(() => _presupuesto = valor);
   }
 
   @override
@@ -121,7 +155,17 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
     final cerca = !excedido && uso >= 0.8;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi compra')),
+      appBar: AppBar(
+        title: const Text('Mi compra'),
+        actions: [
+          if (_productos.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              tooltip: 'Vaciar carrito',
+              onPressed: _vaciar,
+            ),
+        ],
+      ),
       body: Column(
         children: [
           // Resumen: total y presupuesto
@@ -172,7 +216,7 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
                           padding: const EdgeInsets.only(right: 20),
                           child: const Icon(Icons.delete),
                         ),
-                        onDismissed: (_) => setState(() => _productos.removeAt(i)),
+                        onDismissed: (_) => _cambiar(() => _productos.removeAt(i)),
                         child: ListTile(
                           title: Text(p.nombre),
                           subtitle: Text('${clp(p.precio)} c/u'),
@@ -181,12 +225,12 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.remove_circle_outline),
-                                onPressed: p.cantidad > 1 ? () => setState(() => p.cantidad--) : null,
+                                onPressed: p.cantidad > 1 ? () => _cambiar(() => p.cantidad--) : null,
                               ),
                               Text('${p.cantidad}'),
                               IconButton(
                                 icon: const Icon(Icons.add_circle_outline),
-                                onPressed: () => setState(() => p.cantidad++),
+                                onPressed: () => _cambiar(() => p.cantidad++),
                               ),
                               SizedBox(
                                 width: 72,

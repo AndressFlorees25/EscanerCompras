@@ -7,6 +7,16 @@ class Producto {
   Producto(this.nombre, this.precio, {this.cantidad = 1, this.codigo});
 
   int get subtotal => precio * cantidad;
+
+  Map<String, dynamic> toJson() =>
+      {'nombre': nombre, 'precio': precio, 'cantidad': cantidad, 'codigo': codigo};
+
+  factory Producto.fromJson(Map<String, dynamic> j) => Producto(
+        j['nombre'] as String,
+        j['precio'] as int,
+        cantidad: j['cantidad'] as int? ?? 1,
+        codigo: j['codigo'] as String?,
+      );
 }
 
 /// Formatea un monto en pesos chilenos: 12990 -> $12.990
