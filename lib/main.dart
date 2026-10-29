@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'catalogo.dart';
+import 'escaner.dart';
 import 'modelos.dart';
 
 void main() => runApp(const EscanerComprasApp());
@@ -34,8 +36,50 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
     Producto('Leche', 1100, cantidad: 2),
   ];
   int _presupuesto = 20000;
+  final _catalogo = Catalogo();
 
   int get _total => _productos.fold(0, (suma, p) => suma + p.subtotal);
+
+  Future<void> _escanear() async {
+    final codigo = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const PantallaEscaner()),
+    );
+    if (codigo == null || !mounted) return;
+
+    // Si ya está en el carrito, solo sumamos uno más
+    final enCarrito = _productos.where((p) => p.codigo == codigo).firstOrNull;
+    if (enCarrito != null) {
+      setState(() => enCarrito.cantidad++);
+      _avisar('${enCarrito.nombre}: ahora llevas ${enCarrito.cantidad}');
+      return;
+    }
+
+    // Si ya lo escaneaste antes, lo agregamos con el nombre y precio guardados
+    final conocido = await _catalogo.buscar(codigo);
+    if (conocido != null) {
+      setState(() => _productos.add(
+          Producto(conocido['nombre'] as String, conocido['precio'] as int, codigo: codigo)));
+      _avisar('${conocido['nombre']} agregado');
+      return;
+    }
+
+    // Producto nuevo: pedimos nombre y precio, y lo recordamos para la próxima
+    if (!mounted) return;
+    final nuevo = await showDialog<Producto>(
+      context: context,
+      builder: (_) => DialogoProducto(codigo: codigo),
+    );
+    if (nuevo == null) return;
+    await _catalogo.guardar(codigo, nuevo.nombre, nuevo.precio);
+    setState(() => _productos.add(nuevo));
+  }
+
+  void _avisar(String texto) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(texto)));
+  }
 
   Future<void> _agregarProducto() async {
     final nuevo = await showDialog<Producto>(
@@ -157,17 +201,33 @@ class _PantallaCarritoState extends State<PantallaCarrito> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _agregarProducto,
-        icon: const Icon(Icons.add),
-        label: const Text('Agregar'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'agregar',
+            onPressed: _agregarProducto,
+            tooltip: 'Agregar a mano',
+            child: const Icon(Icons.edit),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'escanear',
+            onPressed: _escanear,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Text('Escanear'),
+          ),
+        ],
       ),
     );
   }
 }
 
 class DialogoProducto extends StatefulWidget {
-  const DialogoProducto({super.key});
+  final String? codigo;
+
+  const DialogoProducto({super.key, this.codigo});
 
   @override
   State<DialogoProducto> createState() => _DialogoProductoState();
@@ -184,6 +244,8 @@ class _DialogoProductoState extends State<DialogoProducto> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (widget.codigo != null)
+            Text('Código: ${widget.codigo}', style: Theme.of(context).textTheme.bodySmall),
           TextField(
             controller: _nombre,
             decoration: const InputDecoration(labelText: 'Nombre'),
@@ -202,7 +264,7 @@ class _DialogoProductoState extends State<DialogoProducto> {
           onPressed: () {
             final precio = int.tryParse(_precio.text);
             if (_nombre.text.trim().isEmpty || precio == null) return;
-            Navigator.pop(context, Producto(_nombre.text.trim(), precio));
+            Navigator.pop(context, Producto(_nombre.text.trim(), precio, codigo: widget.codigo));
           },
           child: const Text('Agregar'),
         ),

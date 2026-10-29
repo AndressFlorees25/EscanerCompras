@@ -2,8 +2,9 @@ class Producto {
   final String nombre;
   final int precio;
   int cantidad;
+  final String? codigo; // código de barras, si se escaneó
 
-  Producto(this.nombre, this.precio, {this.cantidad = 1});
+  Producto(this.nombre, this.precio, {this.cantidad = 1, this.codigo});
 
   int get subtotal => precio * cantidad;
 }
